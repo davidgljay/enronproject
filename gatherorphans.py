@@ -1,18 +1,20 @@
 import json
 import sys
 import parser
+import re
 
 inputfile = open("enronemails.csv", "r")
 outputfile = open("orphanemails.csv", "w")
 orphanemails={}
-print "Gathering Orphan Emails"
+print "Gathering orphan emails"
 
 def check_for_orphans(addresses):
 	for address in addresses:
-		if (not "email" in address):
-			orphanemails[address["name"]] = ''
-		elif (address["name"] in orphanemails):
-			orphanemails[address["name"]] = address['email']
+		if ("name" in address):
+			if (not "email" in address):
+				orphanemails[address["name"]] = ''
+			elif (address["name"] in orphanemails):
+				orphanemails[address["name"]] = address['email']
 
 for line in inputfile.readlines():
 	data = line.split("|")
@@ -26,6 +28,8 @@ for line in inputfile.readlines():
 	check_for_orphans(parser.parse_email(data[4]))
 inputfile.close()
 for orphan in orphanemails.keys():
+	if (orphanemails[orphan] == ''):
+		orphanemails[orphan] = (".".join(re.findall("[\w]+",orphan)) + "@noemail.com").lower()
 	outputfile.write(orphan + "|" + orphanemails[orphan] + "\n")
 outputfile.close()
 print('Extracted orphan emails')

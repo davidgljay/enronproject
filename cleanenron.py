@@ -11,6 +11,8 @@ counter = 0
 inputfile = open(ifile, "r")
 outputfile = open("enronemails.csv", "a")
 
+print "Scanning " + ifile
+
 vals={}
 for line in inputfile:
 	splitline = line.split(":")
@@ -48,4 +50,4 @@ for line in inputfile:
 		outputfile.write(outputline)
 		vals={}
 		counter+=1
-print "Added " + str(counter) + " emails to enronemaiils.csv"
+print "Added " + str(counter) + " emails to enronemails.csv"

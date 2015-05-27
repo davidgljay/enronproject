@@ -1,10 +1,17 @@
 from py2neo import Graph, Path
 import parser
 import json
+import re
 
 graph = Graph()
 inputfile = open("enronemails.csv", "r")
+orphanemailfile = open("orphanemails.csv","r")
+queryfile = open("queryfile.txt","w")
 
+orphanemails = {}
+for orphan in orphanemailfile.readlines():
+	orphaninfo = orphan.split("|")
+	orphanemails[orphaninfo[0]]=orphaninfo[1]
 tx = graph.cypher.begin()
 i=0
 for line in inputfile.readlines():
@@ -18,26 +25,51 @@ for line in inputfile.readlines():
 	cc=parser.parse_email(data[3])
 	bcc=parser.parse_email(data[4])
 	subject=data[5].rstrip().lstrip().replace('\"','')
-	#Replace with neo4j links
-	#Create all nodes in from and to
-	#Create links with message subject and date
-	#Probably best to try in n4j console
+	for address in fromval:
+		if (not "email" in address):
+			address["email"]=orphanemails[address["name"]].lstrip().rstrip()
+	for address in to:
+		if (not "email" in address):
+			address["email"]=orphanemails[address["name"]].lstrip().rstrip()
+	for address in cc:
+		if (not "email" in address):
+			address["email"]=orphanemails[address["name"]].lstrip().rstrip()
+	for address in bcc:
+		if (not "email" in address):
+			address["email"]=orphanemails[address["name"]].lstrip().rstrip()
+
 	if (len(fromval)>=1):
-		query = "MERGE (f"+ str(i) +":Person {name:\"" + fromval[0]["name"] + "\""
-		if ("email" in fromval[0]):
-			query += ", email:\"" + fromval[0]["email"] + "\""
-		query += "}) "
+		query = "MERGE (f"+ str(i) +":Person {email:\"" + fromval[0]["email"] + "\"}) "
+		if ("name" in fromval[0]):
+			query +="ON CREATE SET f"+ str(i) + " += {name:\"" + fromval[0]["name"] + "\"} "
 	j=0
 	for recipient in to:
-		query += "MERGE (t"+ str(i) + "_" + str(j) +":Person {name:\"" + recipient["name"] + "\""
-		if ("email" in recipient):
-			query += ", email:\"" + recipient["email"] + "\""
-		query += "}) "
+		query += "MERGE (t"+ str(i) + "_" + str(j) +":Person {email:\"" + recipient["email"] + "\"}) "
+		if ("name" in recipient):
+			query +="ON CREATE SET t"+ str(i) + "_" + str(j) + " += {name:\"" + recipient["name"] + "\"} "
 		query += "CREATE (f" + str(i) + ")-[:emailed {date:\'" + parser.cleantext(date) + "\', subject:\'" + parser.cleantext(subject) + "\', method:\'to\'}]->(t" + str(i) + "_" + str(j) + ") "
 		j+=1
+	for recipient in cc:
+		query += "MERGE (cc"+ str(i) + "_" + str(j) +":Person {email:\"" + recipient["email"] + "\"}) "
+		if ("name" in recipient):
+			query +="ON CREATE SET cc"+ str(i) + "_" + str(j) + " += {name:\"" + recipient["name"] + "\"} "
+		query += "CREATE (f" + str(i) + ")-[:emailed {date:\'" + parser.cleantext(date) + "\', subject:\'" + parser.cleantext(subject) + "\', method:\'cc\'}]->(cc" + str(i) + "_" + str(j) + ") "
+		j+=1
+	for recipient in bcc:
+		query += "MERGE (bcc"+ str(i) + "_" + str(j) +":Person {email:\"" + recipient["email"] + "\"}) "
+		if ("name" in recipient):
+			query +="ON CREATE SET bcc"+ str(i) + "_" + str(j) + " += {name:\"" + recipient["name"] + "\"} "
+		query += "CREATE (f" + str(i) + ")-[:emailed {date:\'" + parser.cleantext(date) + "\', subject:\'" + parser.cleantext(subject) + "\', method:\'bcc\'}]->(bcc" + str(i) + "_" + str(j) + ") "
+		j+=1
+
+	query = query.encode("utf-8")
+	queryfile.write(query + "\n")
+	# tx.append(query)
+	# tx.process()
 	i+=1
-	tx.append(query)
-tx.commit()
+# tx.commit()
+
+queryfile.close()
 inputfile.close()
-#This will require holding the entire thing in memory, it looks like.
-#Will it just be easier to put things direclty in from the CSV? Might as well...
+orphanemailfile.close()
+
